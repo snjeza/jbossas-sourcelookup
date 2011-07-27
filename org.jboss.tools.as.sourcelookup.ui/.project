@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<projectDescription>
+	<name>org.jboss.tools.as.sourcelookup.ui</name>
+	<comment></comment>
+	<projects>
+	</projects>
+	<buildSpec>
+		<buildCommand>
+			<name>org.eclipse.jdt.core.javabuilder</name>
+			<arguments>
+			</arguments>
+		</buildCommand>
+		<buildCommand>
+			<name>org.eclipse.pde.ManifestBuilder</name>
+			<arguments>
+			</arguments>
+		</buildCommand>
+		<buildCommand>
+			<name>org.eclipse.pde.SchemaBuilder</name>
+			<arguments>
+			</arguments>
+		</buildCommand>
+	</buildSpec>
+	<natures>
+		<nature>org.eclipse.pde.PluginNature</nature>
+		<nature>org.eclipse.jdt.core.javanature</nature>
+	</natures>
+	<linkedResources>
+		<link>
+			<name>lib-jbosscore</name>
+			<type>2</type>
+			<location>E:/jbttrunk/jbosstools-trunk/as/plugins/org.jboss.ide.eclipse.as.core/jbosscore</location>
+		</link>
+		<link>
+			<name>lib-src</name>
+			<type>2</type>
+			<location>E:/workspace-3.7/plugins/org.jboss.tools.as.sourcelookup.core/src</location>
+		</link>
+	</linkedResources>
+</projectDescription>
