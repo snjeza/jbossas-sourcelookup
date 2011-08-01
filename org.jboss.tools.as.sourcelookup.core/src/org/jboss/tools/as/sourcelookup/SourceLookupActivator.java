@@ -11,6 +11,7 @@
 package org.jboss.tools.as.sourcelookup;
 
 import org.eclipse.core.internal.runtime.InternalPlatform;
+import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.ILog;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Platform;
@@ -18,6 +19,7 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.preferences.IEclipsePreferences;
 import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.debug.core.DebugPlugin;
+import org.eclipse.debug.core.ILaunchConfiguration;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
@@ -31,6 +33,8 @@ public class SourceLookupActivator implements BundleActivator {
 	// The plug-in ID
 	public static final String PLUGIN_ID = "org.jboss.tools.as.sourcelookup.core"; //$NON-NLS-1$
 	public static final String AS7_LAUNCH_CONFIGURATION_ID = "org.jboss.ide.eclipse.as.core.server.JBoss7StartupConfiguration"; //$NON-NLS-1$
+	public static final String AS_LAUNCH_CONFIGURATION_ID = "org.jboss.ide.eclipse.as.core.server.startupConfiguration"; //$NON-NLS-1$
+	
 	private static final String MAVEN_PLUGIN_ID = "org.eclipse.m2e.core"; //$NON-NLS-1$
 	public static final String JBOSS_LAUNCH_SOURCE_PATH_COMPUTER_ID = "org.jboss.tools.as.sourcelookup.SourcePathComputer"; //$NON-NLS-1$
 	public static final String AUTO_ADD_JBOSS_SOURCE_CONTAINER = "autoAddJBossSourceContainer";
@@ -120,4 +124,10 @@ public class SourceLookupActivator implements BundleActivator {
 		return getPreferences().getBoolean(AUTO_ADD_JBOSS_SOURCE_CONTAINER, AUTO_ADD_JBOSS_SOURCE_CONTAINER_DEFAULT);
 	}
 	
+	public static boolean isJBossAsLaunchConfiguration(ILaunchConfiguration configuration) throws CoreException {
+		return AS7_LAUNCH_CONFIGURATION_ID
+				.equals(configuration.getType().getIdentifier()) ||
+				AS_LAUNCH_CONFIGURATION_ID
+				.equals(configuration.getType().getIdentifier());
+	}
 }

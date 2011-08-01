@@ -48,8 +48,12 @@ import org.eclipse.m2e.core.repository.IRepositoryRegistry;
 import org.eclipse.wst.server.core.IServer;
 import org.eclipse.wst.server.core.ServerUtil;
 import org.jboss.ide.eclipse.as.core.server.IJBossServerRuntime;
+import org.jboss.ide.eclipse.as.core.server.bean.JBossServerType;
+import org.jboss.ide.eclipse.as.core.server.bean.ServerBean;
+import org.jboss.ide.eclipse.as.core.server.bean.ServerBeanLoader;
 import org.jboss.ide.eclipse.as.core.server.internal.JBossServer;
 import org.jboss.ide.eclipse.as.core.util.IJBossRuntimeResourceConstants;
+import org.jboss.ide.eclipse.as.core.util.IJBossToolingConstants;
 import org.jboss.ide.eclipse.as.core.util.ServerConverter;
 import org.jboss.tools.as.sourcelookup.SourceLookupActivator;
 
@@ -64,6 +68,14 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 	private static final String CLASSIFIER_TESTS = "tests"; //$NON-NLS-1$
 	private static final String CLASSIFIER_TESTSOURCES = "test-sources"; //$NON-NLS-1$
 	public static final String TYPE_ID = "org.jboss.tools.as.sourcelookup.containerType";	 //$NON-NLS-1$
+	
+	public static final String EAP = "EAP"; //$NON-NLS-1$
+	public static final String EAP_STD = "EAP_STD"; //$NON-NLS-1$
+	public static final String SOA_P = "SOA-P"; //$NON-NLS-1$
+	public static final String SOA_P_STD = "SOA-P-STD"; //$NON-NLS-1$
+	public static final String EPP = "EPP"; //$NON-NLS-1$
+	public static final String EWP = "EWP"; //$NON-NLS-1$
+	
 	
 	private List<File> jars;
 	private List<ISourceContainer> sourceContainers = new ArrayList<ISourceContainer>();
@@ -115,26 +127,76 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 		if (homePath == null) {
 			return jars;
 		}
-		IPath modules = new Path(homePath).append(IJBossRuntimeResourceConstants.AS7_MODULES);
-		addJars(modules, jars);
-		IPath bundles = new Path(homePath).append("bundles");
-		addJars(bundles, jars);
-		File modulesFile = new File(homePath, IJBossRuntimeResourceConstants.JBOSS7_MODULES_JAR);
-		if (modulesFile.exists()) {
-			jars.add(modulesFile);
+		ServerBeanLoader loader = new ServerBeanLoader();
+		ServerBean serverBean = loader.loadFromLocation(new File(homePath));
+		JBossServerType type = serverBean.getType();
+		String version = serverBean.getVersion();
+		if (JBossServerType.AS7.equals(type)) {
+			getAS7xJars();
+		}
+		if (JBossServerType.AS.equals(type)) {
+			if (IJBossToolingConstants.V6_0.equals(version) ||
+					IJBossToolingConstants.V6_1.equals(version)	) {
+				getAS6xJars();
+			}
+			if (IJBossToolingConstants.V5_0.equals(version) ||
+					IJBossToolingConstants.V5_1.equals(version)	) {
+				getAS5xJars();
+			}
+		}
+		if (SOA_P.equals(type) || EAP.equals(type) || EPP.equals(type)
+				|| SOA_P_STD.equals(type) || EWP.equals(type)
+				|| EAP_STD.equals(type)) {
+		
+			getAS5xJars();
 		}
 		return jars;
 	}
 
-	private void addJars(IPath modules, List<File> jars) {
-		File folder = modules.toFile();
+	private void getAS6xJars() {
+		getAS5xJars();
+	}
+
+	private void getAS5xJars() {
+		IPath common = new Path(homePath).append(IJBossRuntimeResourceConstants.COMMON);
+		addJars(common, jars);
+		IPath lib = new Path(homePath).append(IJBossRuntimeResourceConstants.LIB);
+		addJars(lib, jars);
+		IPath serverPath = new Path(homePath).append(IJBossRuntimeResourceConstants.SERVER);
+		IPath defaultConfiguration = serverPath.append(IJBossRuntimeResourceConstants.DEFAULT_CONFIGURATION);
+		IPath configurationLib = defaultConfiguration.append(IJBossRuntimeResourceConstants.LIB);
+		addJars(configurationLib, jars);
+		IPath deployPath = defaultConfiguration.append(IJBossRuntimeResourceConstants.DEPLOY);
+		IPath deployLib = deployPath.append(IJBossRuntimeResourceConstants.LIB);
+		addJars(deployLib, jars);
+		IPath jbossweb = deployPath.append(IJBossRuntimeResourceConstants.JBOSSWEB_SAR);
+		addJars(jbossweb, jars);
+		IPath deployers = defaultConfiguration.append(IJBossRuntimeResourceConstants.DEPLOYERS);
+		addJars(deployers, jars);
+	}
+
+	private void getAS7xJars() {
+		IPath modules = new Path(homePath)
+				.append(IJBossRuntimeResourceConstants.AS7_MODULES);
+		addJars(modules, jars);
+		IPath bundles = new Path(homePath).append("bundles");
+		addJars(bundles, jars);
+		File modulesFile = new File(homePath,
+				IJBossRuntimeResourceConstants.JBOSS7_MODULES_JAR);
+		if (modulesFile.exists()) {
+			jars.add(modulesFile);
+		}
+	}
+
+	private void addJars(IPath path, List<File> jars) {
+		File folder = path.toFile();
 		if (folder == null || !folder.isDirectory()) {
 			return;
 		}
 		File[] files = folder.listFiles();
 		for (File file:files) {
 			if (file.isDirectory()) {
-				addJars(modules.append(file.getName()), jars);
+				addJars(path.append(file.getName()), jars);
 			}
 			if (file.isFile() && file.getName().endsWith(".jar") && !jars.contains(file)) { //$NON-NLS-1$
 				jars.add(file);

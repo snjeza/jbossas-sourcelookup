@@ -25,16 +25,4 @@
 		<nature>org.eclipse.pde.PluginNature</nature>
 		<nature>org.eclipse.jdt.core.javanature</nature>
 	</natures>
-	<linkedResources>
-		<link>
-			<name>lib-jbosscore</name>
-			<type>2</type>
-			<location>E:/jbttrunk/jbosstools-trunk/as/plugins/org.jboss.ide.eclipse.as.core/jbosscore</location>
-		</link>
-		<link>
-			<name>lib-src</name>
-			<type>2</type>
-			<location>E:/workspace-3.7/plugins/org.jboss.tools.as.sourcelookup.core/src</location>
-		</link>
-	</linkedResources>
 </projectDescription>

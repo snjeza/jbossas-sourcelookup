@@ -41,8 +41,7 @@ public class SourcelookupLaunchConfigurationListener implements
 			if (!SourceLookupActivator.getDefault().isAutoAddSourceContainer()) {
 				return;
 			}
-			if (!SourceLookupActivator.AS7_LAUNCH_CONFIGURATION_ID
-					.equals(configuration.getType().getIdentifier())) {
+			if (!SourceLookupActivator.isJBossAsLaunchConfiguration(configuration)) {
 				return;
 			}
 			if (!SourceLookupActivator.m2eExists()) {

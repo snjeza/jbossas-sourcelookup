@@ -25,26 +25,4 @@
 		<nature>org.eclipse.pde.PluginNature</nature>
 		<nature>org.eclipse.jdt.core.javanature</nature>
 	</natures>
-	<linkedResources>
-		<link>
-			<name>lib-jbosscore</name>
-			<type>2</type>
-			<location>E:/jbttrunk/jbosstools-trunk/as/plugins/org.jboss.ide.eclipse.as.core/jbosscore</location>
-		</link>
-		<link>
-			<name>lib-modello</name>
-			<type>2</type>
-			<location>E:/m2eclipse-0.13.x/m2e-core/org.eclipse.m2e.core/target/generated-sources/modello</location>
-		</link>
-		<link>
-			<name>lib-src</name>
-			<type>2</type>
-			<location>E:/m2eclipse-0.13.x/m2e-core/org.eclipse.m2e.jdt/src</location>
-		</link>
-		<link>
-			<name>lib-src-1</name>
-			<type>2</type>
-			<location>E:/m2eclipse-0.13.x/m2e-core/org.eclipse.m2e.core/src</location>
-		</link>
-	</linkedResources>
 </projectDescription>
