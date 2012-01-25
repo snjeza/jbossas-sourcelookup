@@ -19,4 +19,19 @@
            name="Source Lookup"/>
    </extension>
    
+   <extension point="org.eclipse.ui.editorActions">
+      <editorContribution id="org.jboss.tools.as.sourcelookup.ui.attachSourcesContribution"
+                          targetID="org.eclipse.jdt.ui.ClassFileEditor">
+         <action id="org.jboss.tools.as.sourcelookup.ui.attachSourcesAction"
+              class="org.jboss.tools.as.sourcelookup.ui.actions.AttachSourcesActionDelegate"
+              label="Attach Sources" style="push"/>
+      </editorContribution>
+   </extension>
+   
+   <extension
+         point="org.eclipse.ui.startup">
+      <startup
+            class="org.jboss.tools.as.sourcelookup.ui.Startup"></startup>
+   </extension>
+   
 </plugin>

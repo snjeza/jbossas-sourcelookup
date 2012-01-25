@@ -1,5 +1,5 @@
 /*************************************************************************************
- * Copyright (c) 2008-2011 Red Hat, Inc. and others.
+ * Copyright (c) 2008-2012 Red Hat, Inc. and others.
  * All rights reserved. This program and the accompanying materials 
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -11,7 +11,14 @@
 package org.jboss.tools.as.sourcelookup.containers;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.Iterator;
@@ -20,6 +27,9 @@ import java.util.Properties;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
+
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.Unmarshaller;
 
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.repository.ArtifactRepository;
@@ -56,6 +66,8 @@ import org.jboss.ide.eclipse.as.core.util.IJBossRuntimeResourceConstants;
 import org.jboss.ide.eclipse.as.core.util.IJBossToolingConstants;
 import org.jboss.ide.eclipse.as.core.util.ServerConverter;
 import org.jboss.tools.as.sourcelookup.SourceLookupActivator;
+import org.sonatype.nexus.rest.model.NexusArtifact;
+import org.sonatype.nexus.rest.model.SearchResponse;
 
 /**
  * 
@@ -79,9 +91,9 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 	
 	private List<File> jars;
 	private List<ISourceContainer> sourceContainers = new ArrayList<ISourceContainer>();
-	protected File resolvedFile;
+	protected static File resolvedFile;
 	private String homePath;
-	private List<IRepository> globalRepositories;
+	private static List<IRepository> globalRepositories;
 
 	public JBossSourceContainer(ILaunchConfiguration configuration) throws CoreException {
 		IServer server =  ServerUtil.getServer(configuration);
@@ -102,7 +114,7 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 		initialize();
 	}
 
-	private void initialize() throws CoreException {
+	private static void initialize() throws CoreException {
 		IRepositoryRegistry repositoryRegistry = MavenPlugin
 				.getRepositoryRegistry();
 		globalRepositories = repositoryRegistry
@@ -286,11 +298,108 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 		return objects;
 	}
 
-	private ArtifactKey getArtifact(File file, ZipFile jar)
+	public static ArtifactKey getArtifact(File file, ZipFile jar)
 			throws CoreException, IOException {
+		ArtifactKey artifact = getArtifactFromM2eIndex(file);
+		if (artifact == null) {
+			artifact = getArtifactFromMetaInf(jar);
+		}
+		if (artifact == null) {
+			artifact = getArtifactFromJBossNexusRepository(file);
+		}
+		return artifact;
+	}
+
+	private static ArtifactKey getArtifactFromJBossNexusRepository(File file) {
+		HttpURLConnection connection = null;
+		try {
+			String url = "https://repository.jboss.org/nexus/service/local/data_index?sha1=";
+			url = url + URLEncoder.encode(getSHA1(file), "UTF-8");
+			JAXBContext context = JAXBContext.newInstance(SearchResponse.class);
+	        Unmarshaller unmarshaller = context.createUnmarshaller();
+	        connection = (HttpURLConnection) new URL(url).openConnection();
+	        connection.connect();
+	        Object object = unmarshaller.unmarshal( connection.getInputStream() );
+	        if (object instanceof SearchResponse) {
+	        	SearchResponse searchResponse = (SearchResponse) object;
+	        	for (NexusArtifact nexusArtifact : searchResponse.getData()) {
+	        		String groupId = nexusArtifact.getGroupId();
+	        		String artifactId = nexusArtifact.getArtifactId();
+	        		String version = nexusArtifact.getVersion();
+	        		String classifier = nexusArtifact.getClassifier();
+	        		ArtifactKey artifact = new ArtifactKey(groupId,
+							artifactId, version, classifier);
+	        		return artifact;
+	        	}
+	        }
+		} catch (Exception e) {
+			return null;
+		} finally {
+			if (connection != null) {
+				connection.disconnect();
+			}
+		}
+		return null;
+	}
+
+	private static String getSHA1(File file) throws IOException, NoSuchAlgorithmException {
+		MessageDigest md = MessageDigest.getInstance("SHA1");
+		InputStream inputStream = new FileInputStream(file);
+		byte[] bytes = new byte[16 * 1024];
+		int count = 0;
+		while ((count = inputStream.read(bytes)) != -1) {
+			md.update(bytes, 0, count);
+		}
+		byte[] digestBytes = md.digest();
+		StringBuffer sb = new StringBuffer("");
+		for (int i = 0; i < digestBytes.length; i++) {
+			sb.append(Integer.toString((digestBytes[i] & 0xff) + 0x100, 16).substring(1));
+		}
+		return sb.toString();
+	}
+	
+	protected static ArtifactKey getArtifactFromMetaInf(ZipFile jar) throws IOException {
+		ZipEntry mavenEntry = jar.getEntry("META-INF/maven");//$NON-NLS-1$
+		if (mavenEntry == null) {
+			return null;
+		}
+		String entryName = mavenEntry.getName();
+		Enumeration<? extends ZipEntry> zipEntries = jar
+				.entries();
+		ArtifactKey artifact = null;
+		while (zipEntries.hasMoreElements()) {
+			ZipEntry zipEntry = zipEntries.nextElement();
+			if (zipEntry.getName().endsWith("pom.properties")
+					&& zipEntry.getName().startsWith(entryName)) {
+				Properties props = new Properties();
+				props.load(jar.getInputStream(zipEntry));
+				String groupId = props.getProperty("groupId");
+				String artifactId = props
+						.getProperty("artifactId");
+				String version = props.getProperty("version");
+				String classifier = props
+						.getProperty("classifier");
+				if (groupId != null && artifactId != null
+						&& version != null) {
+					artifact = new ArtifactKey(groupId,
+							artifactId, version, classifier);
+					return artifact;
+				}
+			}
+		}
+		return artifact;
+	}
+
+	protected static ArtifactKey getArtifactFromM2eIndex(File file)
+			throws CoreException {
 		IndexManager indexManager = MavenPlugin.getIndexManager();
 		IIndex index = indexManager.getAllIndexes();
-		IndexedArtifactFile info = index.identify(file);
+		IndexedArtifactFile info = null;
+		try {
+			info = index.identify(file);
+		} catch (Throwable e) {
+			// ignore
+		}
 		ArtifactKey artifact = null;
 		if (info != null) {
 			artifact = info.getArtifactKey();
@@ -300,10 +409,17 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 		}
 		if (indexManager instanceof NexusIndexManager) {
 			NexusIndexManager nexusIndexManager = (NexusIndexManager) indexManager;
+			if (globalRepositories == null) {
+				initialize();
+			}
 			for (IRepository repository:globalRepositories) {
 				NexusIndex nexusIndex = nexusIndexManager.getIndex(repository);
 				if (nexusIndex != null) {
-					info = nexusIndex.identify(file);
+					try {
+						info = nexusIndex.identify(file);
+					} catch (Throwable t) {
+						// ignore
+					}
 					if (info != null) {
 						artifact = info.getArtifactKey();
 						if (artifact != null) {
@@ -313,39 +429,10 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 				}
 			}
 		}
-		if (artifact == null) {
-			ZipEntry mavenEntry = jar.getEntry("META-INF/maven");//$NON-NLS-1$
-			if (mavenEntry == null) {
-				return null;
-			}
-			String entryName = mavenEntry.getName();
-			Enumeration<? extends ZipEntry> zipEntries = jar
-					.entries();
-			while (zipEntries.hasMoreElements()) {
-				ZipEntry zipEntry = zipEntries.nextElement();
-				if (zipEntry.getName().endsWith("pom.properties")
-						&& zipEntry.getName().startsWith(entryName)) {
-					Properties props = new Properties();
-					props.load(jar.getInputStream(zipEntry));
-					String groupId = props.getProperty("groupId");
-					String artifactId = props
-							.getProperty("artifactId");
-					String version = props.getProperty("version");
-					String classifier = props
-							.getProperty("classifier");
-					if (groupId != null && artifactId != null
-							&& version != null) {
-						artifact = new ArtifactKey(groupId,
-								artifactId, version, classifier);
-						return artifact;
-					}
-				}
-			}
-		}
 		return artifact;
 	}
 		
-	private Job downloadArtifact(File file, ArtifactKey artifact) {
+	public static Job downloadArtifact(File file, ArtifactKey artifact) {
 		final ArtifactKey sourcesArtifact = new ArtifactKey(
 				artifact.getGroupId(),
 				artifact.getArtifactId(),
@@ -353,7 +440,7 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 				getSourcesClassifier(artifact
 						.getClassifier()));
 		resolvedFile = null;
-		Job job = new Job("Download sources for "
+		Job job = new Job("Downloading sources for "
 				+ file.getName()) {
 
 			@Override
@@ -372,12 +459,12 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 		return job;
 	}
 
-	private File download(ArtifactKey artifact, IProgressMonitor monitor)
+	private static File download(ArtifactKey artifact, IProgressMonitor monitor)
 			throws CoreException {
 		if (monitor.isCanceled()) {
 			return null;
 		}
-		monitor.beginTask("Download sources...", 2);
+		monitor.beginTask("Downloading sources...", 2);
 		monitor.worked(1);
 		IMaven maven = MavenPlugin.getMaven();
 		Artifact resolved = maven.resolve(artifact.getGroupId(), //
@@ -396,7 +483,7 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 				: CLASSIFIER_SOURCES;
 	}
 
-	private IPath getSourcePath(ArtifactKey a) {
+	public static IPath getSourcePath(ArtifactKey a) {
 		File file = getAttachedArtifactFile(a,
 				getSourcesClassifier(a.getClassifier()));
 
@@ -407,7 +494,7 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 		return null;
 	}
 
-	private File getAttachedArtifactFile(ArtifactKey a, String classifier) {
+	private static File getAttachedArtifactFile(ArtifactKey a, String classifier) {
 		try {
 			IMaven maven = MavenPlugin.getMaven();
 			ArtifactRepository localRepository = maven.getLocalRepository();
