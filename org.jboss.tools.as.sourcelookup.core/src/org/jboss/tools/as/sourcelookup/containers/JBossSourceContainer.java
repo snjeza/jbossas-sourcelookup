@@ -24,6 +24,7 @@ import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
@@ -65,6 +66,7 @@ import org.jboss.ide.eclipse.as.core.server.internal.JBossServer;
 import org.jboss.ide.eclipse.as.core.util.IJBossRuntimeResourceConstants;
 import org.jboss.ide.eclipse.as.core.util.IJBossToolingConstants;
 import org.jboss.ide.eclipse.as.core.util.ServerConverter;
+import org.jboss.tools.as.sourcelookup.NexusRepository;
 import org.jboss.tools.as.sourcelookup.SourceLookupActivator;
 import org.sonatype.nexus.rest.model.NexusArtifact;
 import org.sonatype.nexus.rest.model.SearchResponse;
@@ -72,33 +74,35 @@ import org.sonatype.nexus.rest.model.SearchResponse;
 /**
  * 
  * @author snjeza
- *
+ * 
  */
 public class JBossSourceContainer extends AbstractSourceContainer {
 
+	private static final String PATH_SEPARATOR = "/";
 	private static final String CLASSIFIER_SOURCES = "sources"; //$NON-NLS-1$
 	private static final String CLASSIFIER_TESTS = "tests"; //$NON-NLS-1$
 	private static final String CLASSIFIER_TESTSOURCES = "test-sources"; //$NON-NLS-1$
-	public static final String TYPE_ID = "org.jboss.tools.as.sourcelookup.containerType";	 //$NON-NLS-1$
-	
+	public static final String TYPE_ID = "org.jboss.tools.as.sourcelookup.containerType"; //$NON-NLS-1$
+
 	public static final String EAP = "EAP"; //$NON-NLS-1$
 	public static final String EAP_STD = "EAP_STD"; //$NON-NLS-1$
 	public static final String SOA_P = "SOA-P"; //$NON-NLS-1$
 	public static final String SOA_P_STD = "SOA-P-STD"; //$NON-NLS-1$
 	public static final String EPP = "EPP"; //$NON-NLS-1$
 	public static final String EWP = "EWP"; //$NON-NLS-1$
-	
-	
+
 	private List<File> jars;
 	private List<ISourceContainer> sourceContainers = new ArrayList<ISourceContainer>();
 	protected static File resolvedFile;
 	private String homePath;
 	private static List<IRepository> globalRepositories;
 
-	public JBossSourceContainer(ILaunchConfiguration configuration) throws CoreException {
-		IServer server =  ServerUtil.getServer(configuration);
+	public JBossSourceContainer(ILaunchConfiguration configuration)
+			throws CoreException {
+		IServer server = ServerUtil.getServer(configuration);
 		if (server != null) {
-			JBossServer jbossServer = ServerConverter.checkedGetJBossServer(server);
+			JBossServer jbossServer = ServerConverter
+					.checkedGetJBossServer(server);
 			if (jbossServer != null) {
 				IJBossServerRuntime runtime = jbossServer.getRuntime();
 				if (runtime != null) {
@@ -108,7 +112,8 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 			}
 		}
 		if (this.homePath == null) {
-			IStatus status = new Status(IStatus.ERROR, SourceLookupActivator.PLUGIN_ID, "Invalid configuration");
+			IStatus status = new Status(IStatus.ERROR,
+					SourceLookupActivator.PLUGIN_ID, "Invalid configuration");
 			throw new CoreException(status);
 		}
 		initialize();
@@ -130,7 +135,7 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 			SourceLookupActivator.log(e);
 		}
 	}
-	
+
 	private List<File> getJars() throws CoreException {
 		if (jars != null) {
 			return jars;
@@ -147,20 +152,24 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 			getAS7xJars();
 		}
 		if (JBossServerType.AS.equals(type)) {
-			if (IJBossToolingConstants.V6_0.equals(version) ||
-					IJBossToolingConstants.V6_1.equals(version)	) {
+			if (IJBossToolingConstants.V6_0.equals(version)
+					|| IJBossToolingConstants.V6_1.equals(version)) {
 				getAS6xJars();
 			}
-			if (IJBossToolingConstants.V5_0.equals(version) ||
-					IJBossToolingConstants.V5_1.equals(version)	) {
+			if (IJBossToolingConstants.V5_0.equals(version)
+					|| IJBossToolingConstants.V5_1.equals(version)) {
 				getAS5xJars();
 			}
 		}
 		if (SOA_P.equals(type) || EAP.equals(type) || EPP.equals(type)
 				|| SOA_P_STD.equals(type) || EWP.equals(type)
 				|| EAP_STD.equals(type)) {
-		
+
 			getAS5xJars();
+		}
+		if (jars.size() == 0 && homePath != null) {
+			IPath jarPath = new Path(homePath);
+			addJars(jarPath, jars);
 		}
 		return jars;
 	}
@@ -170,20 +179,28 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 	}
 
 	private void getAS5xJars() {
-		IPath common = new Path(homePath).append(IJBossRuntimeResourceConstants.COMMON);
+		IPath common = new Path(homePath)
+				.append(IJBossRuntimeResourceConstants.COMMON);
 		addJars(common, jars);
-		IPath lib = new Path(homePath).append(IJBossRuntimeResourceConstants.LIB);
+		IPath lib = new Path(homePath)
+				.append(IJBossRuntimeResourceConstants.LIB);
 		addJars(lib, jars);
-		IPath serverPath = new Path(homePath).append(IJBossRuntimeResourceConstants.SERVER);
-		IPath defaultConfiguration = serverPath.append(IJBossRuntimeResourceConstants.DEFAULT_CONFIGURATION);
-		IPath configurationLib = defaultConfiguration.append(IJBossRuntimeResourceConstants.LIB);
+		IPath serverPath = new Path(homePath)
+				.append(IJBossRuntimeResourceConstants.SERVER);
+		IPath defaultConfiguration = serverPath
+				.append(IJBossRuntimeResourceConstants.DEFAULT_CONFIGURATION);
+		IPath configurationLib = defaultConfiguration
+				.append(IJBossRuntimeResourceConstants.LIB);
 		addJars(configurationLib, jars);
-		IPath deployPath = defaultConfiguration.append(IJBossRuntimeResourceConstants.DEPLOY);
+		IPath deployPath = defaultConfiguration
+				.append(IJBossRuntimeResourceConstants.DEPLOY);
 		IPath deployLib = deployPath.append(IJBossRuntimeResourceConstants.LIB);
 		addJars(deployLib, jars);
-		IPath jbossweb = deployPath.append(IJBossRuntimeResourceConstants.JBOSSWEB_SAR);
+		IPath jbossweb = deployPath
+				.append(IJBossRuntimeResourceConstants.JBOSSWEB_SAR);
 		addJars(jbossweb, jars);
-		IPath deployers = defaultConfiguration.append(IJBossRuntimeResourceConstants.DEPLOYERS);
+		IPath deployers = defaultConfiguration
+				.append(IJBossRuntimeResourceConstants.DEPLOYERS);
 		addJars(deployers, jars);
 	}
 
@@ -206,18 +223,25 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 			return;
 		}
 		File[] files = folder.listFiles();
-		for (File file:files) {
+		for (File file : files) {
 			if (file.isDirectory()) {
 				addJars(path.append(file.getName()), jars);
 			}
-			if (file.isFile() && file.getName().endsWith(".jar") && !jars.contains(file)) { //$NON-NLS-1$
+			if (file.isFile()
+					&& file.getName().endsWith(".jar") && !jars.contains(file)) { //$NON-NLS-1$
 				jars.add(file);
 			}
 		}
 	}
-	
+
 	public String getName() {
-		return "JBoss Source Container";  //$NON-NLS-1$
+		String name;
+		if (homePath != null) {
+			name = "JBoss Source Container (" + homePath + ")";
+		} else {
+			name = "JBoss Source Container";
+		}
+		return name; //$NON-NLS-1$
 	}
 
 	@Override
@@ -241,7 +265,7 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 				}
 				jar = new ZipFile(file);
 				String className = name.replace(".java", ".class");
-				className = className.replace("\\", "/");
+				className = className.replace("\\", PATH_SEPARATOR);
 				ZipEntry entry = jar.getEntry(className);//$NON-NLS-1$
 				if (entry != null) {
 					ArtifactKey artifact = getArtifact(file, jar);
@@ -310,28 +334,39 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 		return artifact;
 	}
 
-	private static ArtifactKey getArtifactFromJBossNexusRepository(File file) {
+	private static ArtifactKey getArtifactFromJBossNexusRepository(String sha1,
+			NexusRepository nexusRepository) {
+		if (sha1 == null || nexusRepository == null
+				|| nexusRepository.getUrl() == null) {
+			return null;
+		}
 		HttpURLConnection connection = null;
 		try {
-			String url = "https://repository.jboss.org/nexus/service/local/data_index?sha1=";
-			url = url + URLEncoder.encode(getSHA1(file), "UTF-8");
+			String base = nexusRepository.getUrl();
+			if (!base.endsWith(PATH_SEPARATOR)) {
+				base = base + PATH_SEPARATOR;
+			}
+			// String url =
+			// "https://repository.jboss.org/nexus/service/local/data_index?sha1=";
+			String url = base + "service/local/data_index?sha1=";
+			url = url + URLEncoder.encode(sha1, "UTF-8");
 			JAXBContext context = JAXBContext.newInstance(SearchResponse.class);
-	        Unmarshaller unmarshaller = context.createUnmarshaller();
-	        connection = (HttpURLConnection) new URL(url).openConnection();
-	        connection.connect();
-	        Object object = unmarshaller.unmarshal( connection.getInputStream() );
-	        if (object instanceof SearchResponse) {
-	        	SearchResponse searchResponse = (SearchResponse) object;
-	        	for (NexusArtifact nexusArtifact : searchResponse.getData()) {
-	        		String groupId = nexusArtifact.getGroupId();
-	        		String artifactId = nexusArtifact.getArtifactId();
-	        		String version = nexusArtifact.getVersion();
-	        		String classifier = nexusArtifact.getClassifier();
-	        		ArtifactKey artifact = new ArtifactKey(groupId,
-							artifactId, version, classifier);
-	        		return artifact;
-	        	}
-	        }
+			Unmarshaller unmarshaller = context.createUnmarshaller();
+			connection = (HttpURLConnection) new URL(url).openConnection();
+			connection.connect();
+			Object object = unmarshaller.unmarshal(connection.getInputStream());
+			if (object instanceof SearchResponse) {
+				SearchResponse searchResponse = (SearchResponse) object;
+				for (NexusArtifact nexusArtifact : searchResponse.getData()) {
+					String groupId = nexusArtifact.getGroupId();
+					String artifactId = nexusArtifact.getArtifactId();
+					String version = nexusArtifact.getVersion();
+					String classifier = nexusArtifact.getClassifier();
+					ArtifactKey artifact = new ArtifactKey(groupId, artifactId,
+							version, classifier);
+					return artifact;
+				}
+			}
 		} catch (Exception e) {
 			return null;
 		} finally {
@@ -342,7 +377,30 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 		return null;
 	}
 
-	private static String getSHA1(File file) throws IOException, NoSuchAlgorithmException {
+	private static ArtifactKey getArtifactFromJBossNexusRepository(File file) {
+		String sha1;
+		try {
+			sha1 = getSHA1(file);
+		} catch (Exception e) {
+			return null;
+		}
+		Set<NexusRepository> nexusRepositories = SourceLookupActivator
+				.getNexusRepositories();
+		for (NexusRepository repository : nexusRepositories) {
+			if (!repository.isEnabled()) {
+				continue;
+			}
+			ArtifactKey key = getArtifactFromJBossNexusRepository(sha1,
+					repository);
+			if (key != null) {
+				return key;
+			}
+		}
+		return null;
+	}
+
+	private static String getSHA1(File file) throws IOException,
+			NoSuchAlgorithmException {
 		MessageDigest md = MessageDigest.getInstance("SHA1");
 		InputStream inputStream = new FileInputStream(file);
 		byte[] bytes = new byte[16 * 1024];
@@ -353,19 +411,20 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 		byte[] digestBytes = md.digest();
 		StringBuffer sb = new StringBuffer("");
 		for (int i = 0; i < digestBytes.length; i++) {
-			sb.append(Integer.toString((digestBytes[i] & 0xff) + 0x100, 16).substring(1));
+			sb.append(Integer.toString((digestBytes[i] & 0xff) + 0x100, 16)
+					.substring(1));
 		}
 		return sb.toString();
 	}
-	
-	protected static ArtifactKey getArtifactFromMetaInf(ZipFile jar) throws IOException {
+
+	protected static ArtifactKey getArtifactFromMetaInf(ZipFile jar)
+			throws IOException {
 		ZipEntry mavenEntry = jar.getEntry("META-INF/maven");//$NON-NLS-1$
 		if (mavenEntry == null) {
 			return null;
 		}
 		String entryName = mavenEntry.getName();
-		Enumeration<? extends ZipEntry> zipEntries = jar
-				.entries();
+		Enumeration<? extends ZipEntry> zipEntries = jar.entries();
 		ArtifactKey artifact = null;
 		while (zipEntries.hasMoreElements()) {
 			ZipEntry zipEntry = zipEntries.nextElement();
@@ -374,15 +433,12 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 				Properties props = new Properties();
 				props.load(jar.getInputStream(zipEntry));
 				String groupId = props.getProperty("groupId");
-				String artifactId = props
-						.getProperty("artifactId");
+				String artifactId = props.getProperty("artifactId");
 				String version = props.getProperty("version");
-				String classifier = props
-						.getProperty("classifier");
-				if (groupId != null && artifactId != null
-						&& version != null) {
-					artifact = new ArtifactKey(groupId,
-							artifactId, version, classifier);
+				String classifier = props.getProperty("classifier");
+				if (groupId != null && artifactId != null && version != null) {
+					artifact = new ArtifactKey(groupId, artifactId, version,
+							classifier);
 					return artifact;
 				}
 			}
@@ -412,7 +468,7 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 			if (globalRepositories == null) {
 				initialize();
 			}
-			for (IRepository repository:globalRepositories) {
+			for (IRepository repository : globalRepositories) {
 				NexusIndex nexusIndex = nexusIndexManager.getIndex(repository);
 				if (nexusIndex != null) {
 					try {
@@ -431,23 +487,19 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 		}
 		return artifact;
 	}
-		
+
 	public static Job downloadArtifact(File file, ArtifactKey artifact) {
 		final ArtifactKey sourcesArtifact = new ArtifactKey(
-				artifact.getGroupId(),
-				artifact.getArtifactId(),
+				artifact.getGroupId(), artifact.getArtifactId(),
 				artifact.getVersion(),
-				getSourcesClassifier(artifact
-						.getClassifier()));
+				getSourcesClassifier(artifact.getClassifier()));
 		resolvedFile = null;
-		Job job = new Job("Downloading sources for "
-				+ file.getName()) {
+		Job job = new Job("Downloading sources for " + file.getName()) {
 
 			@Override
 			public IStatus run(IProgressMonitor monitor) {
 				try {
-					resolvedFile = download(
-							sourcesArtifact, monitor);
+					resolvedFile = download(sourcesArtifact, monitor);
 				} catch (CoreException e) {
 					SourceLookupActivator.log(e);
 				}

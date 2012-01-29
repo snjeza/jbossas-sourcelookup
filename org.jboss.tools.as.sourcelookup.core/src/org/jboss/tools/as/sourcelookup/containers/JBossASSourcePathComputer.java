@@ -33,7 +33,7 @@ import org.jboss.tools.as.sourcelookup.SourceLookupActivator;
 /**
  * 
  * @author snjeza
- *
+ * 
  */
 public class JBossASSourcePathComputer implements ISourcePathComputer {
 
@@ -41,62 +41,78 @@ public class JBossASSourcePathComputer implements ISourcePathComputer {
 	public ISourceContainer[] computeSourceContainers(
 			ILaunchConfiguration configuration, IProgressMonitor monitor)
 			throws CoreException {
-		IRuntimeClasspathEntry[] unresolvedEntries = JavaRuntime.computeUnresolvedSourceLookupPath(configuration);
+		IRuntimeClasspathEntry[] unresolvedEntries = JavaRuntime
+				.computeUnresolvedSourceLookupPath(configuration);
 		List<ISourceContainer> sourcefolderList = new ArrayList<ISourceContainer>();
-		
-		IServer server =  ServerUtil.getServer(configuration);
+
+		IServer server = ServerUtil.getServer(configuration);
 		IModule[] modules = server.getModules();
-		
+
 		List<IJavaProject> javaProjectList = new ArrayList<IJavaProject>();
-		
-		processModules(sourcefolderList, modules, javaProjectList, server,monitor);
 
+		processModules(sourcefolderList, modules, javaProjectList, server,
+				monitor);
 
-		IRuntimeClasspathEntry[] projectEntries = new IRuntimeClasspathEntry[javaProjectList.size()];
+		IRuntimeClasspathEntry[] projectEntries = new IRuntimeClasspathEntry[javaProjectList
+				.size()];
 		for (int i = 0; i < javaProjectList.size(); i++) {
-			projectEntries[i] = JavaRuntime.newDefaultProjectClasspathEntry(javaProjectList.get(i)); 
+			projectEntries[i] = JavaRuntime
+					.newDefaultProjectClasspathEntry(javaProjectList.get(i));
 		}
-		IRuntimeClasspathEntry[] entries =  new IRuntimeClasspathEntry[projectEntries.length+unresolvedEntries.length]; 
-		System.arraycopy(unresolvedEntries,0,entries,0,unresolvedEntries.length);
-		System.arraycopy(projectEntries,0,entries,unresolvedEntries.length,projectEntries.length);
-		
-		IRuntimeClasspathEntry[] resolved = JavaRuntime.resolveSourceLookupPath(entries, configuration);
-		ISourceContainer[] javaSourceContainers = JavaRuntime.getSourceContainers(resolved);
-		
+		IRuntimeClasspathEntry[] entries = new IRuntimeClasspathEntry[projectEntries.length
+				+ unresolvedEntries.length];
+		System.arraycopy(unresolvedEntries, 0, entries, 0,
+				unresolvedEntries.length);
+		System.arraycopy(projectEntries, 0, entries, unresolvedEntries.length,
+				projectEntries.length);
+
+		IRuntimeClasspathEntry[] resolved = JavaRuntime
+				.resolveSourceLookupPath(entries, configuration);
+		ISourceContainer[] javaSourceContainers = JavaRuntime
+				.getSourceContainers(resolved);
+
 		if (!sourcefolderList.isEmpty()) {
-			ISourceContainer[] combinedSourceContainers = new ISourceContainer[javaSourceContainers.length + sourcefolderList.size()];
+			ISourceContainer[] combinedSourceContainers = new ISourceContainer[javaSourceContainers.length
+					+ sourcefolderList.size()];
 			sourcefolderList.toArray(combinedSourceContainers);
-			System.arraycopy(javaSourceContainers, 0, combinedSourceContainers, sourcefolderList.size(), javaSourceContainers.length);
+			System.arraycopy(javaSourceContainers, 0, combinedSourceContainers,
+					sourcefolderList.size(), javaSourceContainers.length);
 			javaSourceContainers = combinedSourceContainers;
 		}
-		
-		ISourceContainer jbossContainer = new JBossSourceContainer(configuration);
-		ISourceContainer[] sourceContainers = new ISourceContainer[javaSourceContainers.length+1];
-		System.arraycopy(javaSourceContainers, 0, sourceContainers, 0, javaSourceContainers.length);
+
+		ISourceContainer jbossContainer = new JBossSourceContainer(
+				configuration);
+		ISourceContainer[] sourceContainers = new ISourceContainer[javaSourceContainers.length + 1];
+		System.arraycopy(javaSourceContainers, 0, sourceContainers, 0,
+				javaSourceContainers.length);
 		sourceContainers[javaSourceContainers.length] = jbossContainer;
 		return sourceContainers;
 
 	}
 
-	private void processModules(List<ISourceContainer> sourcefolderList, IModule[] modules, List<IJavaProject> javaProjectList, IServer server, IProgressMonitor monitor) {
+	private void processModules(List<ISourceContainer> sourcefolderList,
+			IModule[] modules, List<IJavaProject> javaProjectList,
+			IServer server, IProgressMonitor monitor) {
 		for (int i = 0; i < modules.length; i++) {
 			IProject project = modules[i].getProject();
 			IModule[] pModule = new IModule[1];
-			pModule[0]=modules[i];
+			pModule[0] = modules[i];
 			IModule[] cModule = server.getChildModules(pModule, monitor);
-			if(cModule != null && cModule.length>0)
-			{
-				processModules(sourcefolderList, cModule, javaProjectList, server, monitor);
+			if (cModule != null && cModule.length > 0) {
+				processModules(sourcefolderList, cModule, javaProjectList,
+						server, monitor);
 			}
 			if (project != null) {
 				IFolder moduleFolder = project.getFolder(modules[i].getName());
 				if (moduleFolder.exists()) {
-					sourcefolderList.add(new FolderSourceContainer(moduleFolder, true));
+					sourcefolderList.add(new FolderSourceContainer(
+							moduleFolder, true));
 				} else {
 					try {
 						if (project.hasNature(JavaCore.NATURE_ID)) {
-							IJavaProject javaProject = (IJavaProject) project.getNature(JavaCore.NATURE_ID);
-							if(!javaProjectList.contains(javaProject)){
+							IJavaProject javaProject = (IJavaProject) project
+									.getNature(JavaCore.NATURE_ID);
+							if (!javaProjectList.contains(javaProject)) {
 								javaProjectList.add(javaProject);
 							}
 						}
