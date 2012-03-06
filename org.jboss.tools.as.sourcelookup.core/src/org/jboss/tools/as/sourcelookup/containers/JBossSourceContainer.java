@@ -162,9 +162,12 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 				getAS5xJars();
 			}
 		}
-		if (SOA_P.equals(type) || EAP.equals(type) || EPP.equals(type)
-				|| SOA_P_STD.equals(type) || EWP.equals(type)
-				|| EAP_STD.equals(type)) {
+		if (JBossServerType.EAP6.equals(type)) {
+			getAS7xJars();
+		}
+		if (JBossServerType.SOAP.equals(type) || JBossServerType.EAP.equals(type) || EPP.equals(type)
+				|| JBossServerType.SOAP_STD.equals(type) || JBossServerType.EWP.equals(type)
+				|| JBossServerType.EAP_STD.equals(type)) {
 
 			getAS5xJars();
 		}
