@@ -144,8 +144,9 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 		if (homePath == null) {
 			return jars;
 		}
-		ServerBeanLoader loader = new ServerBeanLoader();
-		ServerBean serverBean = loader.loadFromLocation(new File(homePath));
+		File location = new File(homePath);
+		ServerBeanLoader loader = new ServerBeanLoader(location);
+		ServerBean serverBean = loader.getServerBean();
 		JBossServerType type = serverBean.getType();
 		String version = serverBean.getVersion();
 		if (JBossServerType.AS7.equals(type)) {
@@ -393,12 +394,64 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 			ArtifactKey key = getArtifactFromJBossNexusRepository(sha1,
 					repository);
 			if (key != null) {
-				return key;
+				ArtifactKey sourcesArtifact = new ArtifactKey(
+						key.getGroupId(), key.getArtifactId(),
+						key.getVersion(),
+						getSourcesClassifier(key.getClassifier()));
+				ArtifactKey resolvedKey = getSourcesArtifactFromJBossNexusRepository(sourcesArtifact, repository);
+				if (resolvedKey != null) {
+					return key;
+				}
 			}
 		}
 		return null;
 	}
 
+	private static ArtifactKey getSourcesArtifactFromJBossNexusRepository(ArtifactKey key,
+			NexusRepository nexusRepository) {
+		if (key == null || nexusRepository == null
+				|| nexusRepository.getUrl() == null) {
+			return null;
+		}
+		HttpURLConnection connection = null;
+		try {
+			String base = nexusRepository.getUrl();
+			if (!base.endsWith(PATH_SEPARATOR)) {
+				base = base + PATH_SEPARATOR;
+			}
+			// String url =
+			// "https://repository.jboss.org/nexus/service/local/data_index?g=groupId&a=artifactId&v=version&c=classifier";
+			String url = base + "service/local/data_index?";
+			url= url + "g=" + URLEncoder.encode(key.getGroupId(), "UTF-8") + "&";
+			url= url + "a=" + URLEncoder.encode(key.getArtifactId(), "UTF-8") + "&";
+			url= url + "v=" + URLEncoder.encode(key.getVersion(), "UTF-8") + "&";
+			url= url + "c=" + URLEncoder.encode(key.getClassifier(), "UTF-8");
+			JAXBContext context = JAXBContext.newInstance(SearchResponse.class);
+			Unmarshaller unmarshaller = context.createUnmarshaller();
+			connection = (HttpURLConnection) new URL(url).openConnection();
+			connection.connect();
+			Object object = unmarshaller.unmarshal(connection.getInputStream());
+			if (object instanceof SearchResponse) {
+				SearchResponse searchResponse = (SearchResponse) object;
+				for (NexusArtifact nexusArtifact : searchResponse.getData()) {
+					String groupId = nexusArtifact.getGroupId();
+					String artifactId = nexusArtifact.getArtifactId();
+					String version = nexusArtifact.getVersion();
+					String classifier = nexusArtifact.getClassifier();
+					ArtifactKey artifact = new ArtifactKey(groupId, artifactId,
+							version, classifier);
+					return artifact;
+				}
+			}
+		} catch (Exception e) {
+			return null;
+		} finally {
+			if (connection != null) {
+				connection.disconnect();
+			}
+		}
+		return null;
+	}
 	private static String getSHA1(File file) throws IOException,
 			NoSuchAlgorithmException {
 		MessageDigest md = MessageDigest.getInstance("SHA1");
@@ -518,6 +571,12 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 		}
 		monitor.beginTask("Downloading sources...", 2);
 		monitor.worked(1);
+		Artifact resolved = resolveArtifact(artifact, monitor);
+		return resolved.getFile();
+	}
+
+	protected static Artifact resolveArtifact(ArtifactKey artifact,
+			IProgressMonitor monitor) throws CoreException {
 		IMaven maven = MavenPlugin.getMaven();
 		Artifact resolved = maven.resolve(artifact.getGroupId(), //
 				artifact.getArtifactId(), //
@@ -527,7 +586,7 @@ public class JBossSourceContainer extends AbstractSourceContainer {
 				maven.getArtifactRepositories(), //
 				monitor);
 		monitor.done();
-		return resolved.getFile();
+		return resolved;
 	}
 
 	static String getSourcesClassifier(String baseClassifier) {
